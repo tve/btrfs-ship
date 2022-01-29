@@ -23,6 +23,7 @@ if [[ -z $ROOT ]] || [[ -z $SUBS ]] || [[ -z $HOST ]]; then
 fi
 REMOTE="${HOST%*:*}"
 PREFIX="${HOST#*:}"
+echo "##### $0 starting" $(date) "#####"
 echo "Root: $ROOT, Subs: $SUBS, Host: $REMOTE, Prefix: $PREFIX"
 
 EXIT=0
@@ -39,10 +40,13 @@ for sv in ${SUBS//,/ }; do
 
   echo "Fetching incremental from ${mr[0]} to ${mr[1]}"
   btrfs subvolume delete $ROOT/$(basename ${mr[1]}) 2>/dev/null || true
+  EX=0
   time ssh $REMOTE "btrfs send -p ${mr[0]} ${mr[1]}" | \
-    ( btrfs receive $ROOT || ( \
-      echo "You may have to ssh $REMOTE btrfs send ${mr[0]} | btrfs receive $ROOT"; \
-      EXIT=1 ))
+    btrfs receive $ROOT || EX=1
+  if [[ $EX -ne 0 ]]; then
+      echo "You may have to ssh $REMOTE btrfs send ${mr[0]} | btrfs receive $ROOT";
+      EXIT=1
+  fi
 done
 echo "=== Done, exit=$EXIT" $(date)
 exit $EXIT
