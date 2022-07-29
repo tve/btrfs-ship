@@ -30,4 +30,4 @@ Initialize:
 
 - run `btrfs-snap.sh` on source server
 - rename `@-xxx` to the previous day `@-yyy`
-- copy snaps using `ssh srcserver btrfs send /mnt/ssd/@-yyy | btrfs rec /mirror/srcserver/@-yyy`
+- copy snaps using `ssh srcserver btrfs send /mnt/ssd/@-yyy | btrfs rec /mirror/srcserver`
