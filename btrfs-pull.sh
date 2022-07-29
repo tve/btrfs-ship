@@ -30,21 +30,50 @@ EXIT=0
 for sv in ${SUBS//,/ }; do
   echo "=== Processing subvolume $sv" $(date)
 
-  # get name of two most recent remote snapshots
-  mr=($(ssh $REMOTE "ls -1rtd $PREFIX/$sv-???" | tail -n 2))
-  if [[ ${#mr[*]} -lt 2 ]]; then
-    echo Only ${#mr[*]} remote snaps found: "${mr[@]}", cannot ship incremental
+  # get name of most recent local snapshot
+  lsnap=$(cd $ROOT; ls -1rtd $sv-??? | tail -n 1)
+  #echo lsnap=$lsnap
+  #btrfs sub list -R $ROOT
+  luuid="$(btrfs sub list -R $ROOT | grep "path $REMOTE/$lsnap" | head -1)"
+  RE='received_uuid ([0-9a-f][-0-9a-f]*) path'
+  if [[ "$luuid" =~ $RE ]]; then
+    luuid=${BASH_REMATCH[1]}
+    echo "Last local snap $lsnap : $luuid"
+  else
+    echo "No local snapshot found as base for incremental"
     EXIT=1
     continue
   fi
 
-  echo "Fetching incremental from ${mr[0]} to ${mr[1]}"
-  btrfs subvolume delete $ROOT/$(basename ${mr[1]}) 2>/dev/null || true
+  # find corresponding remote snap
+  rsnaps="$(ssh $REMOTE "btrfs sub list -u $PREFIX" )"
+  if ! [[ "$rsnaps" =~ $luuid ]]; then
+    echo Cannot find base snapshot on remote server
+    EXIT=1
+    continue
+  fi
+
+  # find most recent remote snap
+  mr=($(ssh $REMOTE "ls -1rtd $PREFIX/$sv-???" | tail -n 1))
+  if ! [[ "$mr" = $PREFIX/$sv-* ]]; then
+    echo "No remote snap found ???"
+    EXIT=1
+    continue
+  elif [[ "$mr" = "$PREFIX/$lsnap" ]]; then
+    echo "No new remote snap found"
+    EXIT=1
+    continue
+  fi
+
+  br="$PREFIX/$lsnap"
+  ml="$ROOT/$(basename ${mr})"
+  echo "Fetching incremental from ${br} to ${mr} as $ml"
+  btrfs subvolume delete $ml 2>/dev/null || true
   EX=0
-  time ssh $REMOTE "btrfs send -p ${mr[0]} ${mr[1]}" | \
+  time ssh $REMOTE "btrfs send -p ${br} ${mr}" | \
     btrfs receive $ROOT || EX=1
   if [[ $EX -ne 0 ]]; then
-      echo "You may have to ssh $REMOTE btrfs send ${mr[0]} | btrfs receive $ROOT";
+      echo "You may have to ssh $REMOTE btrfs send ${mr} | btrfs receive $ROOT";
       EXIT=1
   fi
 done
