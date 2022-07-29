@@ -25,3 +25,9 @@ Typical crontab entries:
 # Mirror btrfs snapshots from srcserver
 7  0    * * *   root    /home/btrfs-ship/btrfs-pull.sh -h srcserver:/mnt/ssd -s @ @home -r /mirror/srcserver >>/var/log/btrfs-pull 2>&1
 ```
+
+Initialize:
+
+- run `btrfs-snap.sh` on source server
+- rename `@-xxx` to the previous day `@-yyy`
+- copy snaps using `ssh srcserver btrfs send /mnt/ssd/@-yyy | btrfs rec /mirror/srcserver`
